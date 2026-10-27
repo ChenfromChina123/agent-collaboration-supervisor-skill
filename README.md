@@ -22,7 +22,7 @@ flowchart LR
     S -.有证据的下一动作.-> R
 ```
 
-主管构建体系并观察它，业务消息直接交真正负责下一步的人。额外 PM 不共写全局台账，审核助手不取得最终批准权。
+主管构建体系并观察它，业务消息直接交真正负责下一步的人。上图是组合模式；采用[产品与调度分离](skills/agent-collaboration-supervisor/references/product-dispatch-parallelism.md)时，产品经理维护需求/决定，独立调度维护已接管任务的执行队列。每项记录保持一个 writer，额外 PM 不共写主台账，审核助手不取得最终批准权。
 
 ## 包含的规则
 
@@ -34,6 +34,7 @@ flowchart LR
 - **增量监督**：按游标、覆盖与样本取证，缺测记 unknown，无变化安静；不把等待批准误判为故障。
 - **安全交接**：保留原任务、未提交现场、有效窗口与锁，受保护角色不自动轮换。
 - **本人维护工作本**：发送方只发布到自己的发件簿，目标 Agent 完成当前项后自己扫描、写待办、认领和反馈；不允许其他 Agent 代写它的记录。
+- **产品与调度并行**：按用户选择分离角色；产品经理处理需求和验收，独立调度持续处理ready项，缺产品条件的项不堵住其余队列。原台账需单writer安全交接。
 
 ## 持久待办架构
 
@@ -49,7 +50,7 @@ flowchart LR
     S -.只读本人回执.-> E
 ```
 
-“待对方扫描”与“已接收、已认领”分别记录。日记/事件由本人维护；主管只登记路径和路由，主 PM 继续唯一维护全局任务台账。产品、用户、需求、模块新增也可记录为本人的分类事件并引用原授权。
+“待对方扫描”与“已接收、已认领”分别记录。日记/事件由本人维护；主管只登记路径和路由。全局执行台账由组合模式的主 PM 或分离后已接管该任务的调度唯一维护。产品、用户、需求、模块新增也可记录为本人的分类事件并引用原授权。
 
 记录按 **日期 → 类别 → 处理项 → 分页** 分类：每页最多50条事件，根文件只列最近20天索引，不向一个文件无限追加。当前协作架构优先于旧全局默认；代码测试后只集成预备线，main 由指定审核者晋级。
 
@@ -88,7 +89,8 @@ Skill 入口：[SKILL.md](skills/agent-collaboration-supervisor/SKILL.md)。
 | [配置样例](skills/agent-collaboration-supervisor/assets/collaboration-config.example.json) | 中性草案，不含真实身份；自动化/并行/继任默认未启用 |
 | [工作本协议](skills/agent-collaboration-supervisor/references/durable-workbooks.md) | 本人维护、扫描认领、持久反馈和空闲空窗 |
 | [本地工作本工具](skills/agent-collaboration-supervisor/scripts/workbook.py) | Python 标准库实现，只操作获准本地记录 |
+| [产品与任务调度并行](skills/agent-collaboration-supervisor/references/product-dispatch-parallelism.md) | 角色分离、就绪卡、独立队列与存量单writer交接 |
 
-工作本行为测试：`python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p test_workbook.py -v`。
+工作本及调度原语测试：`python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p "test_*.py" -v`。隔离文件系统测试与真实Agent派单分开验收。
 
 MIT License。
