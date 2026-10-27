@@ -33,13 +33,17 @@ def resolve_task_view(path, task_id, *, legacy_root=None, legacy_owner=None):
     for key in ("ledger_owner", "execution_owner"):
         if not isinstance(record.get(key), str) or not record[key].strip():
             raise ContractError("Missing explicit " + key)
+    if legacy_path and path != legacy_path and legacy_path.exists() and not record.get("handoff_ref"):
+        raise ContractError("Existing legacy TASK requires explicit handoff before resolving a competing execution view")
     if path != legacy_path:
         source = Path(record.get("source_card", "")).resolve(strict=True)
         if source == path or _read(source).get("task_id") != task_id:
             raise ContractError("source_card must be distinct input for the same TASK")
     if record.get("handoff_ref"):
         handoff = _read(record["handoff_ref"])
-        if not (legacy_path and legacy_owner and handoff.get("task_id") == task_id
+        if not (legacy_path and legacy_path.is_file() and legacy_owner
+                and _read(legacy_path).get("task_id") == task_id
+                and handoff.get("task_id") == task_id
                 and handoff.get("from_ledger_owner") == legacy_owner
                 and handoff.get("to_ledger_owner") == record["ledger_owner"]
                 and handoff.get("prior_writer_stopped") is True

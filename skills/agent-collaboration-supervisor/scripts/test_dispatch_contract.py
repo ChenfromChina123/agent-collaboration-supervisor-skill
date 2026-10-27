@@ -31,6 +31,8 @@ class DispatchContractTests(unittest.TestCase):
 
     def test_distinct_executor_and_writer_feedback_uses_current_execution_state(self):
         record = resolve_task_view(self.view, "TASK-A")
+        new_with_legacy_context = resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
+        self.assertEqual(feedback_recipient(new_with_legacy_context, "PROGRESS"), "dispatcher")
         self.assertEqual(record["status"], "blocked")
         self.assertEqual(json.loads(self.card.read_text())["status"], "ready")
         for kind in ("PROGRESS", "BLOCKED", "TEST_REQUEST", "TEST_RESULT"):
@@ -47,6 +49,14 @@ class DispatchContractTests(unittest.TestCase):
             resolve_task_view(self.view, "TASK-A")
         with self.assertRaises(ContractError):
             resolve_task_view(self.card, "TASK-A")
+
+    def test_existing_legacy_task_requires_handoff_when_reference_is_omitted(self):
+        old = self.write("legacy/tasks/TASK-A.json", {"task_id": "TASK-A", "owner_thread": "developer", "status": "in_progress"})
+        before = old.read_bytes()
+        self.assertNotIn("handoff_ref", json.loads(self.view.read_text()))
+        with self.assertRaises(ContractError):
+            resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
+        self.assertEqual(old.read_bytes(), before)
 
     def test_legacy_fallback_only_resolves_registered_root_without_rewriting_it(self):
         old = self.write("legacy/tasks/TASK-OLD.json", {"task_id": "TASK-OLD", "owner_thread": "old-worker", "status": "in_progress"})
@@ -76,8 +86,11 @@ class DispatchContractTests(unittest.TestCase):
         self.assertEqual(feedback_recipient(moved, "PROGRESS"), "dispatcher")
         self.assertEqual(feedback_recipient(remaining, "PROGRESS"), "product")
         self.assertEqual({p: p.read_bytes() for p in before}, before)
-        for field in ("prior_writer_stopped", "accepted_by_new_owner"):
-            invalid = dict(handoff); invalid[field] = False; self.write("product/handoff.json", invalid)
+        invalid_values = {"prior_writer_stopped": False, "accepted_by_new_owner": False,
+                          "from_ledger_owner": "wrong-prior-writer", "to_ledger_owner": "developer",
+                          "task_id": "TASK-B", "old_authority_pointer": str(self.card)}
+        for field, value in invalid_values.items():
+            invalid = dict(handoff); invalid[field] = value; self.write("product/handoff.json", invalid)
             with self.assertRaises(ContractError):
                 resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
 
