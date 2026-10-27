@@ -21,7 +21,10 @@ def finding_route(finding, existing):
     missing = nonempty(finding, ("finding_key", "reporter", "evidence_ref", "environment", "expected_baseline_ref"))
     if missing:
         return {"action": "verify", "missing": missing}
-    matches = [t for t in existing if t.get("finding_key") == finding["finding_key"]]
+    same_key = [t for t in existing if t.get("finding_key") == finding["finding_key"]]
+    if any(nonempty(t, ("environment",)) for t in same_key):
+        return {"action": "verify_existing_ticket"}
+    matches = [t for t in same_key if t["environment"] == finding["environment"]]
     if len(matches) > 1:
         return {"action": "reconcile_duplicate_tickets"}
     if matches:

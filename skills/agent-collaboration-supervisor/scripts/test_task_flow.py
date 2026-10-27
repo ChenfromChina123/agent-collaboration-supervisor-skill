@@ -31,11 +31,23 @@ class FlowTests(unittest.TestCase):
         self.assertEqual("verify", finding_route(self.finding, [])["action"])
 
     def test_existing_ticket_not_duplicated(self):
-        existing = [dict(finding_key=self.finding["finding_key"], task_id="TASK-original",
+        existing = [dict(finding_key=self.finding["finding_key"], environment="production", task_id="TASK-original",
                          authority_pointer="dispatch/tasks/TASK-original.json", ledger_owner="dispatcher")]
         self.assertEqual("link_existing", finding_route(self.finding, existing)["action"])
         existing.append(copy.deepcopy(existing[0]))
         self.assertEqual("reconcile_duplicate_tickets", finding_route(self.finding, existing)["action"])
+
+    def test_same_finding_in_other_environment_does_not_capture_production(self):
+        existing = [dict(finding_key=self.finding["finding_key"], environment="isolated-test", task_id="TASK-test",
+                         authority_pointer="test-task.json", ledger_owner="dispatcher")]
+        self.assertEqual("ready_for_local_engineering", finding_route(self.finding, existing)["action"])
+        existing.append(dict(existing[0], task_id="TASK-test-2"))
+        self.assertEqual("ready_for_local_engineering", finding_route(self.finding, existing)["action"])
+
+    def test_existing_finding_without_environment_requires_verification(self):
+        existing = [dict(finding_key=self.finding["finding_key"], task_id="TASK-unknown",
+                         authority_pointer="unknown-task.json", ledger_owner="dispatcher")]
+        self.assertEqual("verify_existing_ticket", finding_route(self.finding, existing)["action"])
 
     def test_ready_itself_requires_claim_without_new_assign(self):
         self.assertEqual(dict(action="claim_intake", overdue=True), intake_action(self.ready, "2026-01-01T01:06:00+08:00"))
