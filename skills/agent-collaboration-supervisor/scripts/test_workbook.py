@@ -234,6 +234,16 @@ class WorkbookTests(unittest.TestCase):
         self.assertIn("current item module observation", contents)
         self.assertIn("explicit blocked item observation", contents)
 
+    def test_duplicate_sequence_stops_and_preserves_raw_events(self):
+        book=self.books["worker"]
+        legacy=book.directory / "events/00000001.json"
+        publish(legacy,{"sequence":1,"actor":"worker","at":now(),"kind":"note","data":{"category":"work","text":"conflicting legacy client event"}})
+        before={str(p):p.read_bytes() for p in (book.directory / "events").rglob("*.json")}
+        with self.assertRaises(WorkbookError):
+            book.state()
+        after={str(p):p.read_bytes() for p in (book.directory / "events").rglob("*.json")}
+        self.assertEqual(before,after)
+
 
 if __name__ == "__main__":
     unittest.main()
