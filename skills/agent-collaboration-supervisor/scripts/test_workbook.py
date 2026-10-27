@@ -222,6 +222,18 @@ class WorkbookTests(unittest.TestCase):
             book.note("requirement", "local calendar day")
         self.assertTrue((book.directory / "days/2026/01/02/requirement/part-001.md").exists())
 
+    def test_notes_link_to_current_or_explicit_claimed_work_item(self):
+        message=self.message()
+        self.ingest_claim(message)
+        book=self.books["worker"]
+        book.note("module", "current item module observation")
+        book.transition(message["work_item_id"], "blocked", "missing input")
+        book.note("risk", "explicit blocked item observation", work_item_id=message["work_item_id"])
+        pages=list((book.directory / "tasks" / message["work_item_id"]).glob("*.md"))
+        contents="\n".join(p.read_text(encoding="utf-8") for p in pages)
+        self.assertIn("current item module observation", contents)
+        self.assertIn("explicit blocked item observation", contents)
+
 
 if __name__ == "__main__":
     unittest.main()
