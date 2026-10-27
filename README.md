@@ -34,6 +34,7 @@ flowchart LR
 - **增量监督**：按游标、覆盖与样本取证，缺测记 unknown，无变化安静；不把等待批准误判为故障。
 - **安全交接**：保留原任务、未提交现场、有效窗口与锁，受保护角色不自动轮换。
 - **本人维护工作本**：发送方只发布到自己的发件簿，目标 Agent 完成当前项后自己扫描、写待办、认领和反馈；不允许其他 Agent 代写它的记录。
+- **主动接单与缺陷闭环**：获授权后配置原生周期启动，跟踪真实收件/认领/行动；Agent发现问题查重建修复单，既定基线bug自主修复到专属审核，生产缺陷实际复核后关闭。
 - **产品与调度并行**：按用户选择分离角色；产品经理处理需求和验收，独立调度持续处理ready项，缺产品条件的项不堵住其余队列。原台账需单writer安全交接。
 
 ## 持久待办架构
@@ -54,7 +55,7 @@ flowchart LR
 
 记录按 **日期 → 类别 → 处理项 → 分页** 分类：每页最多50条事件，根文件只列最近20天索引，不向一个文件无限追加。当前协作架构优先于旧全局默认；代码测试后只集成预备线，main 由指定审核者晋级。
 
-[工作本协议与 CLI](skills/agent-collaboration-supervisor/references/durable-workbooks.md)包含本地持久投递工具、恢复约定和试行步骤。工具不联网、不发送即时聊天、不执行消息中的业务动作。文件不会自动唤醒已结束的会话；下一次启动或已有授权的 heartbeat 负责补扫，接入和持续自动运行须分别验收。
+[工作本协议与 CLI](skills/agent-collaboration-supervisor/references/durable-workbooks.md)包含本地持久投递工具、恢复约定和试行步骤。工具不联网、不发送即时聊天、不执行消息中的业务动作。文件不会自动唤醒已结束的会话；启用主动调度后须核对真实扫描入口，按授权配置周期启动/必要的临时接收heartbeat；接入、触发、本人认领及持续效果分别验收。
 
 ## 使用
 
@@ -92,5 +93,7 @@ Skill 入口：[SKILL.md](skills/agent-collaboration-supervisor/SKILL.md)。
 | [产品与任务调度并行](skills/agent-collaboration-supervisor/references/product-dispatch-parallelism.md) | 角色分离、就绪卡、独立队列与存量单writer交接 |
 
 工作本及调度原语测试：`python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p "test_*.py" -v`。隔离文件系统测试与真实Agent派单分开验收。
+
+[主动接单与缺陷闭环](skills/agent-collaboration-supervisor/references/proactive-intake-and-defect-loop.md)提供周期消费、5/10分钟目标、异常恢复和自主/人类决策边界；[只读流程检查器](skills/agent-collaboration-supervisor/scripts/task_flow.py)验证分流、时限和关闭证据缺项，不执行任务或授予权限。
 
 MIT License。

@@ -9,24 +9,77 @@
     "production_source_branch": "main"
   },
   "roles": {
-    "supervisor": {"thread_id": null, "runtime_root": null, "pinned": true, "protected": true},
-    "product_manager": {"thread_id": null, "coordination_root": null, "active_owner_registry": null, "pinned": true, "execution_ledger_writer_when": "combined"},
-    "task_dispatcher": {"thread_id": null, "runtime_root": null, "active_owner_registry": null, "pinned": true, "execution_ledger_write_requires_handoff": true},
-    "pm_collaborator": {"thread_ids": [], "pinned": true, "global_ledger_write_allowed": false},
-    "developer": {"thread_ids": [], "pinned": false, "single_writer_per_real_directory_and_branch": true},
-    "reviewer": {"thread_id": null, "pinned": true, "protected": true},
-    "review_helper": {"thread_ids": [], "pinned": true, "final_approval_allowed": false},
-    "server_change_manager": {"thread_id": null, "pinned": true, "protected": true},
-    "release_owner": {"thread_id": null, "pinned": true, "protected": true},
-    "auditor": {"thread_id": null, "pinned": true, "protected": true},
-    "test_acceptance": {"thread_ids": [], "pinned": true}
+    "supervisor": {
+      "thread_id": null,
+      "runtime_root": null,
+      "pinned": true,
+      "protected": true
+    },
+    "product_manager": {
+      "thread_id": null,
+      "coordination_root": null,
+      "active_owner_registry": null,
+      "pinned": true,
+      "execution_ledger_writer_when": "combined"
+    },
+    "task_dispatcher": {
+      "thread_id": null,
+      "runtime_root": null,
+      "active_owner_registry": null,
+      "pinned": true,
+      "execution_ledger_write_requires_handoff": true
+    },
+    "pm_collaborator": {
+      "thread_ids": [],
+      "pinned": true,
+      "global_ledger_write_allowed": false
+    },
+    "developer": {
+      "thread_ids": [],
+      "pinned": false,
+      "single_writer_per_real_directory_and_branch": true
+    },
+    "reviewer": {
+      "thread_id": null,
+      "pinned": true,
+      "protected": true
+    },
+    "review_helper": {
+      "thread_ids": [],
+      "pinned": true,
+      "final_approval_allowed": false
+    },
+    "server_change_manager": {
+      "thread_id": null,
+      "pinned": true,
+      "protected": true
+    },
+    "release_owner": {
+      "thread_id": null,
+      "pinned": true,
+      "protected": true
+    },
+    "auditor": {
+      "thread_id": null,
+      "pinned": true,
+      "protected": true
+    },
+    "test_acceptance": {
+      "thread_ids": [],
+      "pinned": true
+    }
   },
   "product_dispatch_separation": {
     "enabled": false,
     "authorization_ref": null,
     "product_root": null,
     "dispatch_root": null,
-    "readiness": ["ready", "needs_product_decision", "blocked", "assigned"],
+    "readiness": [
+      "ready",
+      "needs_product_decision",
+      "blocked",
+      "assigned"
+    ],
     "one_execution_authority_pointer_per_task": true,
     "unready_item_blocks_other_ready_items": false,
     "legacy_task_transfer_requires_safe_handoff": true,
@@ -53,7 +106,11 @@
     "transport": "receiver-pulled-sender-owned-outbox",
     "recipient_is_only_workbook_writer": true,
     "sender_writes_recipient_directory": false,
-    "scan_checkpoints": ["turn_start", "current_item_terminal", "before_turn_end"],
+    "scan_checkpoints": [
+      "turn_start",
+      "current_item_terminal",
+      "before_turn_end"
+    ],
     "published_is_not_received": true,
     "ordinary_busy_chat_allowed": false,
     "idle_file_arrival_automatically_wakes_agent": false,
@@ -93,7 +150,10 @@
     "enabled": false,
     "authorization_ref": null,
     "suggested_max_distinct_tasks_per_generation": 10,
-    "eligible_roles": ["product_manager", "developer"],
+    "eligible_roles": [
+      "product_manager",
+      "developer"
+    ],
     "requires_safe_single_writer_handoff": true
   },
   "server_changes": {
@@ -123,5 +183,24 @@
       "prior_writer_stopped",
       "accepted_by_new_owner"
     ]
+  },
+  "proactive_intake": {
+    "enabled": false,
+    "user_authorization_ref": null,
+    "dispatcher_automation_id": null,
+    "suggested_interval_minutes": 2,
+    "claim_target_minutes": 5,
+    "dispatch_or_block_target_minutes": 10,
+    "recipient_scan_jobs": {
+      "temporary": true,
+      "one_per_target": true,
+      "body_remains_sender_outbox": true,
+      "stop_when_no_pending_obligation": true
+    },
+    "readiness_is_intake_obligation": true,
+    "publish_is_developer_claim": false,
+    "defect_report_route": "registered dispatcher in split mode",
+    "baseline_bug_requires_repeat_product_approval": false,
+    "production_close_requires_runtime_reverification": true
   }
 }
