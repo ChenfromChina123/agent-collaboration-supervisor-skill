@@ -71,6 +71,38 @@ class DispatchContractTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             resolve_task_view(old, "../TASK-OLD", legacy_root=self.legacy, legacy_owner="product")
 
+    def test_later_product_reference_does_not_invent_a_legacy_execution_transfer(self):
+        reference = self.write("legacy/tasks/TASK-A.json", {
+            "task_id": "TASK-A", "view_kind": "external_engineering_reference_and_PM_product_decision_scope",
+            "ledger_owner": "dispatcher", "execution_authority": str(self.view),
+            "product_scope": "production decision package only; no copied mutable execution truth",
+            "production_state": "pending_decision", "next_owner": "product"})
+        before = {p: p.read_bytes() for p in (reference, self.view)}
+        resolved = resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
+        self.assertEqual(feedback_recipient(resolved, "PROGRESS"), "dispatcher")
+        self.assertEqual(resolved["status"], "blocked")
+        self.assertNotIn("handoff_ref", resolved)
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        with self.assertRaises(ContractError):
+            resolve_task_view(reference, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
+
+    def test_reference_marker_cannot_hide_competing_writer_or_wrong_authority(self):
+        reference = {"task_id": "TASK-A", "view_kind": "external_engineering_reference_and_PM_product_decision_scope",
+                     "ledger_owner": "dispatcher", "execution_authority": str(self.view)}
+        invalid = [dict(reference, execution_authority=str(self.card)), dict(reference, ledger_owner="product"),
+                   dict(reference, status="in_progress"), dict(reference, owner_thread="old-worker"),
+                   dict(reference, authority_pointer=str(self.legacy / "tasks/TASK-A.json")),
+                   dict(reference, view_kind="unregistered-reference-kind")]
+        missing = dict(reference); del missing["execution_authority"]; invalid.append(missing)
+        for record in invalid:
+            with self.subTest(record=record):
+                self.write("legacy/tasks/TASK-A.json", record)
+                with self.assertRaises(ContractError):
+                    resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy, legacy_owner="product")
+        self.write("legacy/tasks/TASK-A.json", reference)
+        with self.assertRaises(ContractError):
+            resolve_task_view(self.view, "TASK-A", legacy_root=self.legacy)
+
     def test_explicit_handoff_requires_stop_and_accept_and_keeps_other_legacy_owner(self):
         old = self.write("legacy/tasks/TASK-A.json", {"task_id": "TASK-A", "owner_thread": "developer", "status": "paused_for_handoff"})
         untouched = self.write("legacy/tasks/TASK-B.json", {"task_id": "TASK-B", "owner_thread": "other-worker", "status": "in_progress"})
