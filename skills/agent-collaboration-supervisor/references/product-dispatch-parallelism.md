@@ -35,7 +35,21 @@ flowchart LR
 
 ## 单writer台账与存量交接
 
-分离模式配置必须区分 product_root、dispatch_root、owner ID、每task execution_owner 和 authority_pointer。产品经理独占产品/需求/决定；调度独占其已接管的queue/tasks/assignments/执行进度。主视图只能引用另一方事实，不能生成第二份可独立编辑的同任务状态真相。
+分离模式配置必须区分 product_root、dispatch_root 和以下字段；不能把实际执行者当成台账writer：
+
+| 字段 | 唯一含义 |
+|---|---|
+| execution_owner | 实际执行当前工作的人，例如开发者；不因此拥有调度台账写权 |
+| ledger_owner | 唯一执行台账writer；新/已交接项是调度，未交接存量仍是原PM |
+| authority_pointer | 该TASK唯一权威执行视图的确切JSON路径，包含当前状态和ledger_owner；指向视图本身 |
+| source_card | 固定就绪卡/原始输入路径；保留原版本，不能当执行状态来源 |
+| authorization_ref | 原用户授权/产品决定的确切引用，不授予台账写权 |
+
+进度、阻碍、测试资源申请和执行结果只交ledger_owner；产品决定仍交产品经理，技术补证仍交专属审核。next_owner表示当前业务下一步，不替代ledger_owner。查询状态必须从authority_pointer读取，不能从source_card的ready状态推断工作仍未执行。产品经理独占产品/需求/决定；调度独占其已接管的queue/tasks/assignments/执行进度，双方只引用对方权威记录。
+
+旧TASK缺新字段时，只能按已登记的原PM根`tasks/<原TASK-ID>.json`及其已核实owner解析，内存补出ledger_owner和视图指针，不改写旧记录。明确交接后通过固定handoff记录解析新视图；记录应含原/新ledger_owner、旧/新视图路径、原writer停写及新owner接受事实。未完成这一步的其他旧TASK继续原writer，不能批量fallback为新调度。
+
+可用[只读解析器](../scripts/dispatch_contract.py)对确切任务视图进行字段/路径/反馈对象核对；它不会发送消息、写台账或提供账号隔离。解析存量或已交接项时显式传已登记legacy_root/legacy_owner，不从标题猜。其行为用例包含执行者与台账owner不同、源卡与实时执行状态不同，以及交接后另一存量项仍归原PM。
 
 先以新就绪项小范围试行。存量任务仍归原writer，等待其安全点给出固定清单、最后事件、停写和接管证明；原事件/意图路径/累计计数/开发现场/许可窗口保留。没有交接不能夺取旧协调根、迁移全部tasks，不能因PM忙碌、超时或clean status猜它已停写。调度根由登记的调度本人O_EXCL建owner；主管只登记位置，不代建其日记。
 

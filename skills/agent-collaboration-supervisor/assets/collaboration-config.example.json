@@ -105,5 +105,23 @@
     "remote_test_writes_included": true,
     "approved_resource_budget": null
   },
-  "enforcement": "project-policy; not proof of account isolation, branch protection, or a message gateway"
+  "enforcement": "project-policy; not proof of account isolation, branch protection, or a message gateway",
+  "task_view_contract": {
+    "execution_owner": "actual executor, not ledger writer",
+    "ledger_owner": "sole execution-ledger writer; progress/blocker/resource/result recipient",
+    "authority_pointer": "exact canonical task JSON path; points to the execution view itself",
+    "source_card": "fixed readiness input, distinct from execution view",
+    "authorization_ref": "original user approval or product decision",
+    "execution_feedback_to": "TASK.ledger_owner",
+    "legacy_resolution": "verified original PM root/tasks/<original-task-id>.json and active PM owner; no implicit migration",
+    "handoff_requires": [
+      "task_id",
+      "from_ledger_owner",
+      "to_ledger_owner",
+      "old_authority_pointer",
+      "new_authority_pointer",
+      "prior_writer_stopped",
+      "accepted_by_new_owner"
+    ]
+  }
 }
