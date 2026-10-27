@@ -6,7 +6,7 @@ network, worker spawning, task execution, or automatic stale-lock removal.
 """
 import argparse
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -33,6 +33,8 @@ def read(path):
 def identifier(value):
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", value):
         raise WorkbookError("IDs must be 1-100 ASCII letters, digits, hyphens or underscores")
+    if re.fullmatch(r"CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]", value, re.I):
+        raise WorkbookError("Windows reserved device name is not a valid ID")
     return value
 
 
@@ -69,18 +71,32 @@ def replace(path, data):
         temporary.unlink(missing_ok=True)
 
 
-def configure(root, config):
+def configure(root, config, actor=None):
     root = Path(root).resolve()
     identifier(config["manager"])
-    for actor in config["agents"]:
-        identifier(actor)
+    for registered_actor in config["agents"]:
+        identifier(registered_actor)
     if config["manager"] not in config["agents"]:
         raise WorkbookError("Manager must be registered")
     for sender, recipient in config["allowed_routes"]:
         if sender not in config["agents"] or recipient not in config["agents"]:
             raise WorkbookError("Route endpoint is not registered")
     root.mkdir(parents=True, exist_ok=True)
-    publish(root / "registry.json", config)
+    target = root / "registry.json"
+    if target.exists() and read(target) != config:
+        previous = read(target)
+        if actor != previous["manager"] or actor != config["manager"]:
+            raise WorkbookError("Only current registry manager may update configuration; no implicit owner change")
+        manager = Workbook(root, actor)
+        with manager._lock():
+            if read(target) != previous:
+                raise WorkbookError("Registry changed; reread before update")
+            publish(root / "registry-history" / (uuid.uuid4().hex + ".json"), previous)
+            replace(target, encoded(config))
+            manager.registry = config
+            manager._event("note", {"category": "system", "text": "Registry updated by its existing manager; previous version retained"})
+    else:
+        publish(target, config)
     return {"root": str(root), "registered": len(config["agents"]), "enrolled": "each owner must run init"}
 
 
@@ -125,7 +141,9 @@ class Workbook:
 
     def _events(self):
         rows = []
-        for index, path in enumerate(sorted((self.directory / "events").glob("*.json")), 1):
+        self._safe(self.directory / "events")
+        for index, path in enumerate(sorted((self.directory / "events").rglob("*.json"), key=lambda p: p.name), 1):
+            self._safe(path)
             event = read(path)
             if event.get("sequence") != index or event.get("actor") != self.actor:
                 raise WorkbookError("Journal sequence/owner mismatch; preserve and investigate")
@@ -160,21 +178,59 @@ class Workbook:
                 state["outbox"][data["message_id"]] = data
         return state
 
+    def _date(self, timestamp):
+        offset = self.registry.get("calendar_utc_offset_minutes", 0)
+        if not isinstance(offset, int) or not -840 <= offset <= 840:
+            raise WorkbookError("Invalid configured calendar UTC offset")
+        return datetime.fromisoformat(timestamp).astimezone(timezone(timedelta(minutes=offset))).strftime("%Y-%m-%d")
+
     def _refresh(self):
         state = self.state()
         replace(self.directory / "state.json", encoded(state))
-        lines = ["# Agent 工作记录本", "", "Owner: " + self.actor,
-                 "", "当前工作: " + str(state["active_work_item"] or "none"), "",
-                 "此页由本人的不可变事件生成；收件箱内容不等于已认领或已授权。", ""]
+        groups, task_groups = {}, {}
         for event in self._events():
-            lines += ["## " + str(event["sequence"]) + " · " + event["kind"], "", event["at"], "",
-                      "```json", json.dumps(event["data"], ensure_ascii=False, indent=2), "```", ""]
+            date = self._date(event["at"])
+            category = event["data"].get("category") if event["kind"] == "note" else {"queued": "inbox", "dispatched": "dispatch", "claimed": "work", "task_state": "work"}.get(event["kind"], "system")
+            identifier(category)
+            groups.setdefault((date, category), []).append(event)
+            work = event["data"].get("work_item_id")
+            if work:
+                identifier(work)
+                task_groups.setdefault((work, date), []).append(event)
+        dates = {}
+        def pages(directory, prefix, events):
+            self._safe(directory)
+            directory.mkdir(parents=True, exist_ok=True)
+            paths = []
+            for start in range(0, len(events), 50):
+                page = directory / (prefix + f"{start // 50 + 1:03d}.md")
+                lines = ["# 分类工作记录", "", "Owner: " + self.actor, "", "每页最多50条本人事件；原始事件为事实来源。", ""]
+                for event in events[start:start + 50]:
+                    lines += ["## " + str(event["sequence"]) + " · " + event["kind"], "", event["at"], "", "```json", json.dumps(event["data"], ensure_ascii=False, indent=2), "```", ""]
+                replace(page, "\n".join(lines).encode("utf-8"))
+                paths.append(page)
+            return paths
+        for (date, category), events in sorted(groups.items()):
+            directory = self.directory / "days" / date.replace("-", "/") / category
+            paths = pages(directory, "part-", events)
+            dates.setdefault(date, []).extend(paths)
+        for (work, date), events in sorted(task_groups.items()):
+            pages(self.directory / "tasks" / work, date + "-", events)
+        for date, paths in dates.items():
+            directory = self.directory / "days" / date.replace("-", "/")
+            lines = ["# " + date + " 分类索引", "", "仅导航，本页不追加正文。", ""]
+            lines += ["- [" + p.relative_to(directory).as_posix() + "](" + p.relative_to(directory).as_posix() + ")" for p in paths]
+            replace(directory / "INDEX.md", "\n".join(lines).encode("utf-8"))
+        lines = ["# Agent 工作记录本索引", "", "Owner: " + self.actor, "", "当前工作: " + str(state["active_work_item"] or "none"), "", "仅显示最近20个日期入口；完整历史按 days/YYYY/MM/DD 分类，任务页在 tasks/WORK-ID/。此页不累计正文。", ""]
+        lines += ["- [" + date + "](days/" + date.replace("-", "/") + "/INDEX.md)" for date in sorted(dates, reverse=True)[:20]]
         replace(self.directory / "WORKLOG.md", "\n".join(lines).encode("utf-8"))
 
     def _event(self, kind, data):
         sequence = len(self._events()) + 1
         event = {"sequence": sequence, "actor": self.actor, "at": now(), "kind": kind, "data": data}
-        publish(self.directory / "events" / (f"{sequence:08d}.json"), event)
+        destination = self.directory / "events" / self._date(event["at"]).replace("-", "/") / (f"{sequence:08d}.json")
+        self._safe(destination.parent)
+        publish(destination, event)
         self._refresh()
 
     def init(self):
@@ -198,6 +254,9 @@ class Workbook:
         for key in ("task_id", "type", "summary", "next_action", "authorization_ref", "created_at"):
             if not isinstance(message[key], str) or not message[key].strip():
                 raise WorkbookError("Missing message field: " + key)
+        stamp = datetime.fromisoformat(message["created_at"])
+        if stamp.tzinfo is None:
+            raise WorkbookError("created_at must include timezone")
         if [message["sender"], message["recipient"]] not in self.registry["allowed_routes"]:
             raise WorkbookError("Route is not authorized in registry")
         if len(encoded(message)) > 65536:
@@ -209,7 +268,12 @@ class Workbook:
         if message["sender"] != self.actor:
             raise WorkbookError("Only sender may publish its outbox")
         with self._lock():
-            destination = self.directory / "outbox" / (message["message_id"] + ".json")
+            self._safe(self.directory / "outbox")
+            existing = list((self.directory / "outbox").rglob(message["message_id"] + ".json"))
+            if len(existing) > 1:
+                raise WorkbookError("Multiple outbox objects use the same message ID")
+            destination = existing[0] if existing else self.directory / "outbox" / self._date(message["created_at"]).replace("-", "/") / (message["message_id"] + ".json")
+            self._safe(destination.parent)
             publish(destination, message)
             state = self.state()
             if message["message_id"] not in state["outbox"]:
@@ -220,28 +284,32 @@ class Workbook:
 
     def _published(self):
         rows = []
+        by_id = {}
         senders = {sender for sender, recipient in self.registry["allowed_routes"] if recipient == self.actor}
         for sender in sorted(senders):
             directory = self.root / "agents" / sender / "outbox"
             self._safe(directory)
-            for path in sorted(directory.glob("*.json")):
+            for path in sorted(directory.rglob("*.json")):
                 self._safe(path)
                 message = self._message(read(path))
                 if message["sender"] != sender or path.stem != message["message_id"]:
                     raise WorkbookError("Outbox envelope/path mismatch")
                 if message["recipient"] == self.actor:
+                    if message["message_id"] in by_id and by_id[message["message_id"]] != message:
+                        raise WorkbookError("Message ID collision across senders")
+                    by_id[message["message_id"]] = message
                     rows.append(message)
-        return sorted(rows, key=lambda item: (item["created_at"], item["message_id"]))
+        return sorted(rows, key=lambda item: (datetime.fromisoformat(item["created_at"]), item["message_id"]))
 
     def _inbox(self):
         rows = []
-        for path in sorted((self.directory / "inbox").glob("*/*.json")):
+        for path in sorted((self.directory / "inbox").rglob("*.json")):
             self._safe(path)
             message = self._message(read(path))
-            if message["recipient"] != self.actor or path.parent.name != message["sender"] or path.stem != message["message_id"]:
+            if message["recipient"] != self.actor or path.relative_to(self.directory / "inbox").parts[0] != message["sender"] or path.stem != message["message_id"]:
                 raise WorkbookError("Inbox envelope/path mismatch")
             rows.append(message)
-        return sorted(rows, key=lambda item: (item["created_at"], item["message_id"]))
+        return sorted(rows, key=lambda item: (datetime.fromisoformat(item["created_at"]), item["message_id"]))
 
     def scan(self, limit=20):
         with self._lock():
@@ -255,12 +323,16 @@ class Workbook:
                         "pending_count": len(pending) + len(unseen), "messages": [], "scan_at": now()}
             # Receiver is the ONLY writer of its own inbox, journal and derived views.
             for message in unseen[:limit]:
-                destination = self.directory / "inbox" / message["sender"] / (message["message_id"] + ".json")
+                existing = list((self.directory / "inbox").rglob(message["message_id"] + ".json"))
+                if len(existing) > 1:
+                    raise WorkbookError("Multiple inbox objects use the same message ID")
+                destination = existing[0] if existing else self.directory / "inbox" / message["sender"] / self._date(now()).replace("-", "/") / (message["message_id"] + ".json")
                 self._safe(destination.parent)
                 publish(destination, message)
                 self._event("queued", {key: message[key] for key in ("message_id", "sender", "task_id", "work_item_id", "type")})
             state = self.state()
             pending = [message for message in self._inbox() if message["message_id"] not in state["received"]]
+            self._refresh()
             return {"actor": self.actor, "gate": "ready", "active_work_item": None, "pending_count": len(pending),
                     "messages": pending[:limit], "more_count": max(0, len(pending) - limit),
                     "not_imported_count": max(0, len(unseen) - limit), "scan_at": now()}
@@ -303,14 +375,25 @@ class Workbook:
                 raise WorkbookError("Another work item is active")
             if not result.strip():
                 raise WorkbookError("Record result, evidence pointer, or explicit blocker")
+            if len(result.encode("utf-8")) > 8192:
+                raise WorkbookError("Use an evidence pointer; result exceeds 8 KiB")
             self._event("task_state", {"work_item_id": work_item_id, "status": status, "result": result})
         return {"work_item_id": work_item_id, "status": status, "next_scan_required": status in ("completed", "blocked", "cancelled", "rejected")}
 
-    def note(self, category, text):
+    def note(self, category, text, work_item_id=None):
         if category not in {"work", "dispatch", "product", "user", "requirement", "module", "risk"} or not text.strip():
             raise WorkbookError("Use a supported note category and nonempty text")
+        if len(text.encode("utf-8")) > 8192:
+            raise WorkbookError("Use an evidence pointer; note exceeds 8 KiB")
         with self._lock():
-            self._event("note", {"category": category, "text": text})
+            state = self.state()
+            work = work_item_id or state["active_work_item"]
+            data = {"category": category, "text": text}
+            if work:
+                if work not in state["items"]:
+                    raise WorkbookError("Note work item was never claimed")
+                data.update(work_item_id=work, task_id=state["items"][work]["task_id"])
+            self._event("note", data)
         return {"recorded": True, "category": category}
 
     def receipts(self):
@@ -350,9 +433,10 @@ def main():
     note_cmd = commands.add_parser("note")
     note_cmd.add_argument("--category", required=True)
     note_cmd.add_argument("--text", required=True)
+    note_cmd.add_argument("--work-item")
     args = parser.parse_args()
     if args.command == "configure":
-        result = configure(args.root, read(Path(args.config)))
+        result = configure(args.root, read(Path(args.config)), args.actor)
     else:
         book = Workbook(args.root, args.actor)
         if args.command == "receipts":
@@ -364,7 +448,7 @@ def main():
         elif args.command == "transition":
             result = book.transition(args.work_item, args.status, args.result)
         elif args.command == "note":
-            result = book.note(args.category, args.text)
+            result = book.note(args.category, args.text, args.work_item)
         elif args.command == "scan":
             if not 1 <= args.limit <= 100:
                 raise WorkbookError("scan limit must be 1-100")

@@ -78,7 +78,7 @@ ID 仅用字母/数字/短横线/下划线，避免 Windows 文件名问题。�
 | blocked | 接收方本人阻塞事件 | 保留进度、缺项、解除条件及下一 owner |
 | completed / rejected / cancelled | 接收方本人终态与证据 | 本步骤收口，业务整体另按原验收 |
 
-send 不写别人目录。本人 busy 时 scan 只返回延期和数量，不导入第二项。note 记录 work/dispatch/product/user/requirement/module/risk 及原授权/需求指针。receipts 只读对方本人事件，不另发 ACK，不假造“收到”。
+send 不写别人目录。本人 busy 时 scan 只返回延期和数量，不导入第二项。note 记录 work/dispatch/product/user/requirement/module/risk 及原授权/需求指针，默认关联当前已认领处理项；无当前项时可用 --work-item 显式关联既有项。旧笔记没有结构化处理项时保留未关联事实，不从正文猜归属。receipts 只读对方本人事件，不另发 ACK，不假造“收到”。
 
 消息完整落盘后原子发布，同 ID 同内容重试幂等，同 ID 不同内容拒绝；同 work_item 不重复执行。崩溃后 status 从不可变事件重放，本人 init 可重建 state.json/WORKLOG.md。若已 claimed 而执行结果未知，先核对实际效果再恢复；工具不承诺外部业务 exactly-once。
 
