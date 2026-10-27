@@ -8,7 +8,7 @@ Keep public sources free of project-specific credentials, internal addresses, pe
 
 Required checks for workbook changes:
 
-- python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p test_workbook.py -v
+- python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p "test_*.py" -v
 - Skill frontmatter/UI metadata, JSON examples, local reference links and git diff --check.
 - Owner-only import, replay/idempotency, busy deferral and date/category/page partition behavior.
 
