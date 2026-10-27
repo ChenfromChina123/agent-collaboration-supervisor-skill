@@ -100,3 +100,27 @@ def closure(record):
                      "independent_reverification_ref"]
     missing = nonempty(record, required)
     return {"closed": not missing, "missing": missing, "scope": scope}
+
+
+def activation_plan(work, recipient_state):
+    """Demand-driven activation, based on work obligations rather than message length."""
+    if any(type(work.get(k)) is not bool for k in ("upstream_work", "inflight_obligation")):
+        return {"action": "verify_obligation", "timer": False}
+    if not work["upstream_work"] and not work["inflight_obligation"]:
+        return {"action": "pause", "timer": False}
+    if work.get("terminal") is True:
+        return {"action": "pause", "timer": False}
+    if work.get("external_wait") is True:
+        if nonempty(work, ("wait_owner", "wait_condition", "recheck_at")):
+            return {"action": "verify_wait", "timer": False}
+        timestamp(work["recheck_at"])
+        return {"action": "pause_until_recheck", "timer": False, "recheck_at": work["recheck_at"]}
+    if work.get("weight") not in {"light", "heavy"}:
+        return {"action": "classify_workload", "timer": False}
+    if recipient_state not in {"safe_idle", "busy"}:
+        return {"action": "verify_recipient_checkpoint", "timer": False}
+    initial = "direct_start" if recipient_state == "safe_idle" else "checkpoint_deferred"
+    if work["weight"] == "heavy" and work.get("needs_followup") is True:
+        return {"action": initial, "timer": True, "interval_minutes": 15,
+                "stop_when": "no upstream or in-flight obligation, terminal, or external hold"}
+    return {"action": initial, "timer": False}

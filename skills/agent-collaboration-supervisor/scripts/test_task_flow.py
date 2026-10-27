@@ -1,6 +1,6 @@
 import copy
 import unittest
-from task_flow import finding_route, intake_action, closure
+from task_flow import finding_route, intake_action, closure, activation_plan
 
 
 class FlowTests(unittest.TestCase):
@@ -96,6 +96,34 @@ class FlowTests(unittest.TestCase):
         self.assertTrue(closure(r)["closed"])
         r["closure_scope"] = "production"
         self.assertFalse(closure(r)["closed"])
+
+    def test_empty_upstream_has_no_downstream_timer(self):
+        plan = activation_plan(dict(upstream_work=False, inflight_obligation=False, weight="heavy"), "safe_idle")
+        self.assertEqual(dict(action="pause", timer=False), plan)
+
+    def test_light_role_notice_uses_one_start_even_with_long_body(self):
+        work = dict(upstream_work=True, inflight_obligation=False, weight="light", body="context " * 10000)
+        self.assertEqual(dict(action="direct_start", timer=False), activation_plan(work, "safe_idle"))
+        self.assertEqual(dict(action="checkpoint_deferred", timer=False), activation_plan(work, "busy"))
+
+    def test_heavy_multi_iteration_uses_slow_task_followup(self):
+        work = dict(upstream_work=False, inflight_obligation=True, weight="heavy", needs_followup=True)
+        self.assertEqual(15, activation_plan(work, "busy")["interval_minutes"])
+        work["terminal"] = True
+        self.assertEqual(dict(action="pause", timer=False), activation_plan(work, "safe_idle"))
+
+    def test_external_hold_pauses_until_explicit_recheck(self):
+        work = dict(upstream_work=True, inflight_obligation=True, weight="heavy", needs_followup=True, external_wait=True,
+                    wait_owner="manager", wait_condition="approved window", recheck_at="2026-01-01T02:00:00Z")
+        self.assertEqual("pause_until_recheck", activation_plan(work, "busy")["action"])
+        del work["recheck_at"]
+        self.assertEqual("verify_wait", activation_plan(work, "busy")["action"])
+
+    def test_unknown_weight_or_owner_does_not_create_timer(self):
+        work = dict(upstream_work=True, inflight_obligation=False, weight="unknown")
+        self.assertEqual("classify_workload", activation_plan(work, "safe_idle")["action"])
+        work["weight"] = "light"
+        self.assertEqual("verify_recipient_checkpoint", activation_plan(work, "unknown")["action"])
 
 
 if __name__ == "__main__":

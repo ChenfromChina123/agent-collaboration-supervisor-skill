@@ -188,19 +188,24 @@
     "enabled": false,
     "user_authorization_ref": null,
     "dispatcher_automation_id": null,
-    "suggested_interval_minutes": 2,
     "claim_target_minutes": 5,
     "dispatch_or_block_target_minutes": 10,
     "recipient_scan_jobs": {
       "temporary": true,
       "one_per_target": true,
       "body_remains_sender_outbox": true,
-      "stop_when_no_pending_obligation": true
+      "stop_when_no_pending_obligation": true,
+      "heavy_multi_iteration_only": true
     },
     "readiness_is_intake_obligation": true,
     "publish_is_developer_claim": false,
     "defect_report_route": "registered dispatcher in split mode",
     "baseline_bug_requires_repeat_product_approval": false,
-    "production_close_requires_runtime_reverification": true
+    "production_close_requires_runtime_reverification": true,
+    "activation_mode": "demand-driven",
+    "heavy_followup_suggested_minutes": 15,
+    "light_work_uses_timer": false,
+    "pause_if_no_upstream_or_inflight_obligation": true,
+    "new_ready_or_result_requires_one_safe_start": true
   }
 }
