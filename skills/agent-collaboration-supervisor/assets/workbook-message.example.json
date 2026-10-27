@@ -1,0 +1,15 @@
+{
+  "message_id": "MSG-EXAMPLE-001",
+  "work_item_id": "WORK-EXAMPLE-001",
+  "task_id": "EXISTING-TASK-ID",
+  "sender": "pm",
+  "recipient": "worker",
+  "type": "TASK",
+  "summary": "The authorized bounded task or evidence request",
+  "next_action": "Validate original scope, then claim or record a blocker",
+  "authorization_ref": "original-user-scope-or-approved-task-reference",
+  "requires_action": true,
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "evidence": [],
+  "legacy_message_id": null
+}
