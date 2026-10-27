@@ -82,6 +82,12 @@ send 不写别人目录。本人 busy 时 scan 只返回延期和数量，不导
 
 消息完整落盘后原子发布，同 ID 同内容重试幂等，同 ID 不同内容拒绝；同 work_item 不重复执行。崩溃后 status 从不可变事件重放，本人 init 可重建 state.json/WORKLOG.md。若已 claimed 而执行结果未知，先核对实际效果再恢复；工具不承诺外部业务 exactly-once。
 
+Windows等环境可能拒绝替换正在被读取的派生页。投影仅在字节变化时原子替换，权限/共享拒绝最多尝试3次（间隔0、50、150毫秒）；不把该策略用于原始事件、消息发布、registry、锁或业务动作。拒绝来源仍须实际证据核对，不自行改ACL或关闭用户程序。
+
+若事件已提交但派生页仍失败，API/CLI返回`operation_status=committed_projection_pending`、`canonical_event_committed=true`、确切`committed_event_sequences`及`projection_status=pending`。本机事件提交返回成功不表示派生页、外部业务或完整验收成功；不能据页面未更新而重发、重认领或重做业务。先用`status`/`receipts`从不可变事件核对，再由本人在后续检查点`init`重建。直接读取state.json或Markdown须与原始序号核对，滞后投影不等于未接收。
+
+已有owner的重建若仍失败，返回`projection_pending_no_new_event`和`canonical_event_committed=false`，仅表示本次未新增事件，不推翻此前已提交的认领。原始事件读取失败/序号冲突、未知owner/锁及registry替换失败仍是硬错误，不能降级为投影提示。投影恢复不追加新业务事件，不声称外部exactly-once。
+
 未知 owner、已有锁、损坏事件、路径/路由不符均保留并报错，不按锁龄删锁。使用同文件系统原子硬链接发布，先测试目标文件系统能力；不可用则阻断，不降级为半文件可读写入。
 
 试行期间必须固定受测的不可变工具版本，不能执行会被分支更新替换的脚本。旧客户端若忽略日期目录，可能制造重复序号；检测到冲突立即保留原始事件，不自动选边。已确认的单条重复note，只能由本人核对原字节、时间和业务事件后可逆归档并补关联说明；未知冲突保持blocked。代码版本、工具配置和本人记录一致后才能扩大试行。

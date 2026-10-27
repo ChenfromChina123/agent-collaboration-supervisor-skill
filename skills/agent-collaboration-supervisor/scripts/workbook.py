@@ -7,15 +7,25 @@ network, worker spawning, task execution, or automatic stale-lock removal.
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+import errno
+from functools import wraps
 import json
 import os
 from pathlib import Path
 import re
+import time
 import uuid
 
 
 class WorkbookError(RuntimeError):
     pass
+
+
+class ProjectionWriteError(WorkbookError):
+    def __init__(self, path, cause):
+        super().__init__("Derived view could not be refreshed: " + str(path))
+        self.path = str(path)
+        self.cause = cause
 
 
 def now():
@@ -71,7 +81,37 @@ def replace(path, data):
         temporary.unlink(missing_ok=True)
 
 
+def replace_projection(path, data):
+    """Skip identical derived bytes; bounded retries never apply to journals/registry."""
+    try:
+        if path.read_bytes() == data:
+            return
+    except FileNotFoundError:
+        pass
+    for attempt, delay in enumerate((0, 0.05, 0.15)):
+        if delay:
+            time.sleep(delay)
+        try:
+            replace(path, data)
+            return
+        except OSError as exc:
+            denied = (getattr(exc, "winerror", None) in (5, 32, 33)
+                      or exc.errno in (errno.EACCES, errno.EPERM))
+            if not denied or attempt == 2:
+                raise
+
+
+def projection_outcome(method):
+    @wraps(method)
+    def operation(self, *args, **kwargs):
+        self._projection_warnings = []
+        self._committed_sequences = []
+        return self._operation_result(method(self, *args, **kwargs))
+    return operation
+
+
 def configure(root, config, actor=None):
+    manager = None
     root = Path(root).resolve()
     identifier(config["manager"])
     for registered_actor in config["agents"]:
@@ -97,7 +137,8 @@ def configure(root, config, actor=None):
             manager._event("note", {"category": "system", "text": "Registry updated by its existing manager; previous version retained"})
     else:
         publish(target, config)
-    return {"root": str(root), "registered": len(config["agents"]), "enrolled": "each owner must run init"}
+    result = {"root": str(root), "registered": len(config["agents"]), "enrolled": "each owner must run init"}
+    return manager._operation_result(result) if manager is not None else result
 
 
 class Workbook:
@@ -109,6 +150,28 @@ class Workbook:
             raise WorkbookError("Unregistered actor")
         self.directory = self.root / "agents" / actor
         self._safe(self.directory)
+        self._projection_warnings = []
+        self._committed_sequences = []
+
+    def _operation_result(self, result):
+        if not self._projection_warnings:
+            return result
+        return {**result,
+                "operation_status": "committed_projection_pending" if self._committed_sequences else "projection_pending_no_new_event",
+                "canonical_event_committed": bool(self._committed_sequences),
+                "committed_event_sequences": list(self._committed_sequences),
+                "projection_status": "pending",
+                "projection_warnings": list(self._projection_warnings),
+                "state_source": "immutable_events; state.json and Markdown may lag",
+                "recovery_action": "Do not replay business/send/claim/transition. Read status/receipts from events; owner init can rebuild views later."}
+
+    def _project(self, path, data):
+        self._safe(path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            replace_projection(path, data)
+        except OSError as exc:
+            raise ProjectionWriteError(path, exc) from exc
 
     def _safe(self, path):
         if path.resolve() != path.absolute() or not path.resolve().is_relative_to(self.root):
@@ -185,8 +248,19 @@ class Workbook:
         return datetime.fromisoformat(timestamp).astimezone(timezone(timedelta(minutes=offset))).strftime("%Y-%m-%d")
 
     def _refresh(self):
+        try:
+            self._refresh_views()
+        except ProjectionWriteError as exc:
+            self._projection_warnings.append({"path": exc.path,
+                                              "error": type(exc.cause).__name__, "errno": exc.cause.errno,
+                                              "winerror": getattr(exc.cause, "winerror", None)})
+        else:
+            # A later refresh in the same scan may already have repaired every view.
+            self._projection_warnings = []
+
+    def _refresh_views(self):
         state = self.state()
-        replace(self.directory / "state.json", encoded(state))
+        self._project(self.directory / "state.json", encoded(state))
         groups, task_groups = {}, {}
         for event in self._events():
             date = self._date(event["at"])
@@ -200,14 +274,13 @@ class Workbook:
         dates = {}
         def pages(directory, prefix, events):
             self._safe(directory)
-            directory.mkdir(parents=True, exist_ok=True)
             paths = []
             for start in range(0, len(events), 50):
                 page = directory / (prefix + f"{start // 50 + 1:03d}.md")
                 lines = ["# 分类工作记录", "", "Owner: " + self.actor, "", "每页最多50条本人事件；原始事件为事实来源。", ""]
                 for event in events[start:start + 50]:
                     lines += ["## " + str(event["sequence"]) + " · " + event["kind"], "", event["at"], "", "```json", json.dumps(event["data"], ensure_ascii=False, indent=2), "```", ""]
-                replace(page, "\n".join(lines).encode("utf-8"))
+                self._project(page, "\n".join(lines).encode("utf-8"))
                 paths.append(page)
             return paths
         for (date, category), events in sorted(groups.items()):
@@ -220,10 +293,10 @@ class Workbook:
             directory = self.directory / "days" / date.replace("-", "/")
             lines = ["# " + date + " 分类索引", "", "仅导航，本页不追加正文。", ""]
             lines += ["- [" + p.relative_to(directory).as_posix() + "](" + p.relative_to(directory).as_posix() + ")" for p in paths]
-            replace(directory / "INDEX.md", "\n".join(lines).encode("utf-8"))
+            self._project(directory / "INDEX.md", "\n".join(lines).encode("utf-8"))
         lines = ["# Agent 工作记录本索引", "", "Owner: " + self.actor, "", "当前工作: " + str(state["active_work_item"] or "none"), "", "仅显示最近20个日期入口；完整历史按 days/YYYY/MM/DD 分类，任务页在 tasks/WORK-ID/。此页不累计正文。", ""]
         lines += ["- [" + date + "](days/" + date.replace("-", "/") + "/INDEX.md)" for date in sorted(dates, reverse=True)[:20]]
-        replace(self.directory / "WORKLOG.md", "\n".join(lines).encode("utf-8"))
+        self._project(self.directory / "WORKLOG.md", "\n".join(lines).encode("utf-8"))
 
     def _event(self, kind, data):
         sequence = len(self._events()) + 1
@@ -231,8 +304,10 @@ class Workbook:
         destination = self.directory / "events" / self._date(event["at"]).replace("-", "/") / (f"{sequence:08d}.json")
         self._safe(destination.parent)
         publish(destination, event)
+        self._committed_sequences.append(sequence)
         self._refresh()
 
+    @projection_outcome
     def init(self):
         with self._lock(require_owner=False):
             owner = self.directory / "owner.json"
@@ -263,6 +338,7 @@ class Workbook:
             raise WorkbookError("Use evidence pointers; message exceeds 64 KiB")
         return message
 
+    @projection_outcome
     def send(self, message):
         self._message(message)
         if message["sender"] != self.actor:
@@ -311,6 +387,7 @@ class Workbook:
             rows.append(message)
         return sorted(rows, key=lambda item: (datetime.fromisoformat(item["created_at"]), item["message_id"]))
 
+    @projection_outcome
     def scan(self, limit=20):
         with self._lock():
             state = self.state()
@@ -337,6 +414,7 @@ class Workbook:
                     "messages": pending[:limit], "more_count": max(0, len(pending) - limit),
                     "not_imported_count": max(0, len(unseen) - limit), "scan_at": now()}
 
+    @projection_outcome
     def claim(self, message_id):
         identifier(message_id)
         with self._lock():
@@ -358,6 +436,7 @@ class Workbook:
                 "sender": message["sender"], "authorization_ref": message["authorization_ref"], "claimed_at": now()})
         return {"message_id": message_id, "work_item_id": message["work_item_id"], "status": "claimed", "execution_authorized_by_claim": False}
 
+    @projection_outcome
     def transition(self, work_item_id, status, result):
         allowed = {"claimed": {"in_progress", "completed", "blocked", "rejected", "cancelled"},
                    "in_progress": {"completed", "blocked", "cancelled"},
@@ -380,6 +459,7 @@ class Workbook:
             self._event("task_state", {"work_item_id": work_item_id, "status": status, "result": result})
         return {"work_item_id": work_item_id, "status": status, "next_scan_required": status in ("completed", "blocked", "cancelled", "rejected")}
 
+    @projection_outcome
     def note(self, category, text, work_item_id=None):
         if category not in {"work", "dispatch", "product", "user", "requirement", "module", "risk"} or not text.strip():
             raise WorkbookError("Use a supported note category and nonempty text")
