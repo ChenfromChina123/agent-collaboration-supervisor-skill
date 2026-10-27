@@ -33,6 +33,27 @@ flowchart LR
 - **有界并行**：先有已授权父任务和独立范围，再创建助手；建议总额外助手最多 2 名，需项目实际授权。
 - **增量监督**：按游标、覆盖与样本取证，缺测记 unknown，无变化安静；不把等待批准误判为故障。
 - **安全交接**：保留原任务、未提交现场、有效窗口与锁，受保护角色不自动轮换。
+- **本人维护工作本**：发送方只发布到自己的发件簿，目标 Agent 完成当前项后自己扫描、写待办、认领和反馈；不允许其他 Agent 代写它的记录。
+
+## 持久待办架构
+
+```mermaid
+flowchart LR
+    S[发送方本人] --> O[自己的发件簿与派单记录]
+    R[接收方本人] -->|完成当前项后扫描| O
+    R --> Q[自己的工作本与待办]
+    Q --> C[本人标记已认领]
+    C --> W[进行中]
+    W --> E[完成 / 阻塞 / 证据]
+    E -->|再扫描下一项| R
+    S -.只读本人回执.-> E
+```
+
+“待对方扫描”与“已接收、已认领”分别记录。日记/事件由本人维护；主管只登记路径和路由，主 PM 继续唯一维护全局任务台账。产品、用户、需求、模块新增也可记录为本人的分类事件并引用原授权。
+
+记录按 **日期 → 类别 → 处理项 → 分页** 分类：每页最多50条事件，根文件只列最近20天索引，不向一个文件无限追加。当前协作架构优先于旧全局默认；代码测试后只集成预备线，main 由指定审核者晋级。
+
+[工作本协议与 CLI](skills/agent-collaboration-supervisor/references/durable-workbooks.md)包含本地持久投递工具、恢复约定和试行步骤。工具不联网、不发送即时聊天、不执行消息中的业务动作。文件不会自动唤醒已结束的会话；下一次启动或已有授权的 heartbeat 负责补扫，接入和持续自动运行须分别验收。
 
 ## 使用
 
@@ -65,5 +86,9 @@ Skill 入口：[SKILL.md](skills/agent-collaboration-supervisor/SKILL.md)。
 | [搭建与交接](skills/agent-collaboration-supervisor/references/bootstrap-and-handoff.md) | 创建/复用角色、置顶、独占根和代际交接 |
 | [监督与并行](skills/agent-collaboration-supervisor/references/supervision-and-parallelism.md) | 覆盖/指标、就绪委派包、助手容量与串行门禁 |
 | [配置样例](skills/agent-collaboration-supervisor/assets/collaboration-config.example.json) | 中性草案，不含真实身份；自动化/并行/继任默认未启用 |
+| [工作本协议](skills/agent-collaboration-supervisor/references/durable-workbooks.md) | 本人维护、扫描认领、持久反馈和空闲空窗 |
+| [本地工作本工具](skills/agent-collaboration-supervisor/scripts/workbook.py) | Python 标准库实现，只操作获准本地记录 |
+
+工作本行为测试：`python -m unittest discover -s skills/agent-collaboration-supervisor/scripts -p test_workbook.py -v`。
 
 MIT License。
