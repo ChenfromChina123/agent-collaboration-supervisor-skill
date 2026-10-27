@@ -10,7 +10,8 @@
   },
   "roles": {
     "supervisor": {"thread_id": null, "runtime_root": null, "pinned": true, "protected": true},
-    "product_manager": {"thread_id": null, "coordination_root": null, "active_owner_registry": null, "pinned": true, "single_global_ledger_writer": true},
+    "product_manager": {"thread_id": null, "coordination_root": null, "active_owner_registry": null, "pinned": true, "execution_ledger_writer_when": "combined"},
+    "task_dispatcher": {"thread_id": null, "runtime_root": null, "active_owner_registry": null, "pinned": true, "execution_ledger_write_requires_handoff": true},
     "pm_collaborator": {"thread_ids": [], "pinned": true, "global_ledger_write_allowed": false},
     "developer": {"thread_ids": [], "pinned": false, "single_writer_per_real_directory_and_branch": true},
     "reviewer": {"thread_id": null, "pinned": true, "protected": true},
@@ -19,6 +20,18 @@
     "release_owner": {"thread_id": null, "pinned": true, "protected": true},
     "auditor": {"thread_id": null, "pinned": true, "protected": true},
     "test_acceptance": {"thread_ids": [], "pinned": true}
+  },
+  "product_dispatch_separation": {
+    "enabled": false,
+    "authorization_ref": null,
+    "product_root": null,
+    "dispatch_root": null,
+    "readiness": ["ready", "needs_product_decision", "blocked", "assigned"],
+    "one_execution_authority_pointer_per_task": true,
+    "unready_item_blocks_other_ready_items": false,
+    "legacy_task_transfer_requires_safe_handoff": true,
+    "actor_creation_or_reassignment_requires_user_choice": true,
+    "idle_file_arrival_automatically_wakes_dispatcher": false
   },
   "pinning": {
     "policy": "all-non-developer-conversations",
@@ -92,5 +105,23 @@
     "remote_test_writes_included": true,
     "approved_resource_budget": null
   },
-  "enforcement": "project-policy; not proof of account isolation, branch protection, or a message gateway"
+  "enforcement": "project-policy; not proof of account isolation, branch protection, or a message gateway",
+  "task_view_contract": {
+    "execution_owner": "actual executor, not ledger writer",
+    "ledger_owner": "sole execution-ledger writer; progress/blocker/resource/result recipient",
+    "authority_pointer": "exact canonical task JSON path; points to the execution view itself",
+    "source_card": "fixed readiness input, distinct from execution view",
+    "authorization_ref": "original user approval or product decision",
+    "execution_feedback_to": "TASK.ledger_owner",
+    "legacy_resolution": "verified original PM root/tasks/<original-task-id>.json and active PM owner; no implicit migration",
+    "handoff_requires": [
+      "task_id",
+      "from_ledger_owner",
+      "to_ledger_owner",
+      "old_authority_pointer",
+      "new_authority_pointer",
+      "prior_writer_stopped",
+      "accepted_by_new_owner"
+    ]
+  }
 }
