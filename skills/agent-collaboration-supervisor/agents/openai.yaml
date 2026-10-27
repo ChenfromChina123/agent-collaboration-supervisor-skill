@@ -1,0 +1,4 @@
+interface:
+  display_name: "多 Agent 协作架构主管"
+  short_description: "构建多 Agent 职责、消息路由、任务调度、并行边界与监督体系"
+  default_prompt: "使用 $agent-collaboration-supervisor 为这个项目建立或维护多 Agent 协作架构，先复用现有负责人，并明确权限、置顶、交接和验收规则。"

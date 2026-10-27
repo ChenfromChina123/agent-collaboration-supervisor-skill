@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "status": "draft-example",
+  "project": null,
+  "authority": {
+    "rules_index": null,
+    "effective_commit": null,
+    "integration_branch": "pre-main",
+    "production_source_branch": "main"
+  },
+  "roles": {
+    "supervisor": {"thread_id": null, "runtime_root": null, "pinned": true, "protected": true},
+    "product_manager": {"thread_id": null, "coordination_root": null, "active_owner_registry": null, "pinned": true, "single_global_ledger_writer": true},
+    "pm_collaborator": {"thread_ids": [], "pinned": true, "global_ledger_write_allowed": false},
+    "developer": {"thread_ids": [], "pinned": false, "single_writer_per_real_directory_and_branch": true},
+    "reviewer": {"thread_id": null, "pinned": true, "protected": true},
+    "review_helper": {"thread_ids": [], "pinned": true, "final_approval_allowed": false},
+    "server_change_manager": {"thread_id": null, "pinned": true, "protected": true},
+    "release_owner": {"thread_id": null, "pinned": true, "protected": true},
+    "auditor": {"thread_id": null, "pinned": true, "protected": true},
+    "test_acceptance": {"thread_ids": [], "pinned": true}
+  },
+  "pinning": {
+    "policy": "all-non-developer-conversations",
+    "user_overrides_take_precedence": true,
+    "native_agents_without_sidebar_conversation": "not_applicable",
+    "grants_additional_authority": false
+  },
+  "communication": {
+    "protocol": "agent-collaboration/v1",
+    "unique_next_owner": true,
+    "ack_of_ack_allowed": false,
+    "unchanged_state_broadcast_allowed": false,
+    "same_message_retry_limit": 1,
+    "supervisor_is_required_relay": false
+  },
+  "parallelism": {
+    "enabled": false,
+    "authorization_ref": null,
+    "suggested_max_active_helpers_total": 2,
+    "approved_max_active_helpers_total": null,
+    "requires_ready_business_owner_packet": true,
+    "native_subagents_preferred": true,
+    "recursive_helpers_allowed": false,
+    "creation_unknown_occupies_slot": true,
+    "result_recipient": "business_owner",
+    "native_creator_only_result_fallback": "one_consolidated_relay"
+  },
+  "supervision": {
+    "automation_enabled": false,
+    "automation_authorization_ref": null,
+    "automation_id": null,
+    "target_thread_id": null,
+    "suggested_interval_minutes": 30,
+    "suggested_daily_summary_after_local": "09:00",
+    "timezone": null,
+    "summary_period": "previous-local-calendar-day",
+    "suggested_max_detailed_threads_per_run": 8,
+    "suggested_stagnation_checks": 2,
+    "stagnation_requires_runnable_and_no_known_wait": true,
+    "unchanged_notification": "quiet",
+    "missing_data": "unknown"
+  },
+  "succession": {
+    "enabled": false,
+    "authorization_ref": null,
+    "suggested_max_distinct_tasks_per_generation": 10,
+    "eligible_roles": ["product_manager", "developer"],
+    "requires_safe_single_writer_handoff": true
+  },
+  "server_changes": {
+    "supervisor_write_allowed": false,
+    "requires_specific_user_scope": true,
+    "requires_manager_approval": true,
+    "requires_designated_executor": true,
+    "requires_project_lock": true,
+    "remote_test_writes_included": true,
+    "approved_resource_budget": null
+  },
+  "enforcement": "project-policy; not proof of account isolation, branch protection, or a message gateway"
+}
