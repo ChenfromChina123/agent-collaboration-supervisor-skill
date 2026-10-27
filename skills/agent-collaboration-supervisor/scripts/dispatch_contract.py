@@ -33,8 +33,24 @@ def resolve_task_view(path, task_id, *, legacy_root=None, legacy_owner=None):
     for key in ("ledger_owner", "execution_owner"):
         if not isinstance(record.get(key), str) or not record[key].strip():
             raise ContractError("Missing explicit " + key)
-    if legacy_path and path != legacy_path and legacy_path.exists() and not record.get("handoff_ref"):
-        raise ContractError("Existing legacy TASK requires explicit handoff before resolving a competing execution view")
+    if legacy_path and path != legacy_path and legacy_path.exists():
+        prior = _read(legacy_path)
+        reference_only = prior.get("view_kind") == "external_engineering_reference_and_PM_product_decision_scope"
+        if reference_only:
+            # A PM can later reference a dispatcher-created TASK without ever owning its execution.
+            # The marker alone cannot suppress the genuine legacy-writer handoff gate.
+            execution_fields = {"authority_pointer", "execution_owner", "owner_thread", "status", "phase",
+                                "source_sha", "pre_main_sha", "main_sha", "review_state", "release_state",
+                                "queue_state", "worktree", "branch"}
+            target = prior.get("execution_authority")
+            if not (legacy_owner and prior.get("task_id") == task_id
+                    and prior.get("ledger_owner") == record["ledger_owner"] != legacy_owner
+                    and isinstance(target, str) and target.strip()
+                    and Path(target).resolve(strict=True) == path
+                    and not execution_fields.intersection(prior)):
+                raise ContractError("Product reference must name the same external writer/view and contain no execution truth")
+        elif not record.get("handoff_ref"):
+            raise ContractError("Existing legacy TASK requires explicit handoff before resolving a competing execution view")
     if path != legacy_path:
         source = Path(record.get("source_card", "")).resolve(strict=True)
         if source == path or _read(source).get("task_id") != task_id:

@@ -49,7 +49,9 @@ flowchart LR
 
 旧TASK缺新字段时，只能按已登记的原PM根`tasks/<原TASK-ID>.json`及其已核实owner解析，内存补出ledger_owner和视图指针，不改写旧记录。明确交接后通过固定handoff记录解析新视图；记录应含原/新ledger_owner、旧/新视图路径、原writer停写及新owner接受事实。未完成这一步的其他旧TASK继续原writer，不能批量fallback为新调度。
 
-可用[只读解析器](../scripts/dispatch_contract.py)对确切任务视图进行字段/路径/反馈对象核对；它不会发送消息、写台账或提供账号隔离。项目有已登记历史协调根时，解析新视图也须显式传legacy_root/legacy_owner以检查同TASK是否已经存在，不能不传上下文就宣称没有存量冲突。若同TASK旧视图存在而读取另一执行视图，handoff_ref为必需输入，省略/空值或错误证明不能跳过停写/接受校验；无该旧TASK的新项保持原行为。用例同时验证错误证明被拒、有效逐项交接及另一存量项仍归原PM。
+可用[只读解析器](../scripts/dispatch_contract.py)对确切任务视图进行字段/路径/反馈对象核对；它不会发送消息、写台账或提供账号隔离。项目有已登记历史协调根时，解析新视图也须显式传legacy_root/legacy_owner以检查同TASK是否已经存在，不能不传上下文就宣称没有存量冲突。若同TASK旧canonical执行视图存在而读取另一执行视图，handoff_ref为必需输入，省略/空值或错误证明不能跳过停写/接受校验；无该旧TASK的新项保持原行为。用例同时验证错误证明被拒、有效逐项交接及另一存量项仍归原PM。
+
+后建的产品引用不是旧执行视图：已登记PM根内同TASK文件若显式标记`view_kind=external_engineering_reference_and_PM_product_decision_scope`，其`execution_authority`精确指向当前调度视图、`ledger_owner`等于该外部writer且不同于已核实旧PM owner，并且不含status/phase/执行者/源码版本/工作树等第二套执行字段，则只作产品决定引用，不凭文件同名要求一次从未发生的执行权交接。缺标记/owner/正确指针、夹带执行真相或真正旧canonical视图仍保留原R3门禁。解析器不把引用文件当执行视图返回，不改写任一文件；不能伪造handoff或省略legacy上下文来消除误报。
 
 先以新就绪项小范围试行。存量任务仍归原writer，等待其安全点给出固定清单、最后事件、停写和接管证明；原事件/意图路径/累计计数/开发现场/许可窗口保留。没有交接不能夺取旧协调根、迁移全部tasks，不能因PM忙碌、超时或clean status猜它已停写。调度根由登记的调度本人O_EXCL建owner；主管只登记位置，不代建其日记。
 
