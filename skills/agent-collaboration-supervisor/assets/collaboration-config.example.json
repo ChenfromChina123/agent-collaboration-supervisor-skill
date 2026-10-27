@@ -34,6 +34,21 @@
     "same_message_retry_limit": 1,
     "supervisor_is_required_relay": false
   },
+  "workbooks": {
+    "enabled": false,
+    "runtime_root": null,
+    "transport": "receiver-pulled-sender-owned-outbox",
+    "recipient_is_only_workbook_writer": true,
+    "sender_writes_recipient_directory": false,
+    "scan_checkpoints": ["turn_start", "current_item_terminal", "before_turn_end"],
+    "published_is_not_received": true,
+    "ordinary_busy_chat_allowed": false,
+    "idle_file_arrival_automatically_wakes_agent": false,
+    "note_partition": "date/category/work-item/page",
+    "events_per_page": 50,
+    "root_index_recent_dates": 20,
+    "note_or_result_max_bytes": 8192
+  },
   "parallelism": {
     "enabled": false,
     "authorization_ref": null,
