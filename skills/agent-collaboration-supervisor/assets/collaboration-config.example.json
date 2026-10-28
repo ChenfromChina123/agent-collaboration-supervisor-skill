@@ -151,7 +151,6 @@
     "authorization_ref": null,
     "suggested_max_distinct_tasks_per_generation": 10,
     "eligible_roles": [
-      "product_manager",
       "developer"
     ],
     "requires_safe_single_writer_handoff": true
