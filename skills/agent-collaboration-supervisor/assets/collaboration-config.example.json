@@ -136,7 +136,7 @@
     "automation_authorization_ref": null,
     "automation_id": null,
     "target_thread_id": null,
-    "suggested_interval_minutes": 30,
+    "suggested_interval_minutes": 1440,
     "suggested_daily_summary_after_local": "09:00",
     "timezone": null,
     "summary_period": "previous-local-calendar-day",
@@ -144,7 +144,8 @@
     "suggested_stagnation_checks": 2,
     "stagnation_requires_runnable_and_no_known_wait": true,
     "unchanged_notification": "quiet",
-    "missing_data": "unknown"
+    "missing_data": "unknown",
+    "cadence_requires_current_user_choice": true
   },
   "succession": {
     "enabled": false,
