@@ -5,6 +5,7 @@ No network/chat calls, task execution, background worker or account isolation.
 Use with the workbook.py from the same reviewed, frozen release.
 """
 import argparse
+from datetime import datetime
 from functools import wraps
 import json
 from pathlib import Path
@@ -144,7 +145,7 @@ class AgentMail:
                 raise WorkbookError("Recipient header reference mismatch")
             if not self._receipt(header["sender"], header["message_id"], "accepted").exists():
                 pending.append({**header, "opened": self._receipt(header["sender"], header["message_id"], "opened").exists()})
-        pending.sort(key=lambda h: (h["created_at"], h["message_id"]))
+        pending.sort(key=lambda h: (datetime.fromisoformat(h["created_at"]), h["message_id"]))
         return {"actor": self.actor, "headers": pending[:limit], "more_count": max(0, len(pending) - limit),
                 "context_loaded": False, "peer_workbooks_scanned": False}
 

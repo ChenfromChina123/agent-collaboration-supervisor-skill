@@ -161,5 +161,11 @@ class MailTransportTests(unittest.TestCase):
         self.assertEqual(len(self.mail["worker"].headers()["headers"]),2)
         self.assertEqual(len(book.state()["outbox"]),2)
 
+    def test_header_order_compares_real_instants_across_offsets(self):
+        later={**self.message(),"created_at":"2026-10-27T23:59:59+00:00"}
+        earlier={**self.message(2),"created_at":"2026-10-28T00:01:00+08:00"}
+        self.mail["manager"].send(later);self.mail["manager"].send(earlier)
+        self.assertEqual([h["message_id"] for h in self.mail["worker"].headers()["headers"]],["MAIL-2","MAIL-1"])
+
 
 if __name__ == "__main__": unittest.main()
