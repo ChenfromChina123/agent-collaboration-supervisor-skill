@@ -40,3 +40,5 @@
 分别记录输入、缓存输入、输出、真实调用/轮次、耗时、重试和任务结果。缓存输入是输入子集，reasoning是输出子集；不要重复相加，不把字符/字节换算成Token。累计计数要去重并核对重置，缺测保留unknown；公开费率推算不是实际账单。
 
 同范围比较变更前后的实际用量与正确性，检查认领、路由、唯一writer、越权拒绝、真实完成和异常升级。便宜模型若增加返工/错误，不按单次费率宣称节省。当前支持和费率查官方[模型选择](https://developers.openai.com/api/docs/guides/model-selection)及[Codex/Work定价](https://learn.chatgpt.com/docs/pricing)，不要把某次价格固化为永久规则。
+
+新任务发现用[独立邮箱](mailbox-transport.md)：标题通知不含完整上下文，按邮件ID打开才加载正文；各角色不扫描所有Agent待办/发件簿，不为收件新增逐角色timer。主管既有旁路元数据审计与邮件交付分别记录。

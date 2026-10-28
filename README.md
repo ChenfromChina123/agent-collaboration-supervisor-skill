@@ -34,7 +34,7 @@ flowchart LR
 - **增量监督**：按游标、覆盖与样本取证，缺测记 unknown，无变化安静；不把等待批准误判为故障。
 - **协作成本与模型分层**：只查变化，不为凑满上限读取冷会话；定时器看本人实际义务，模型按用户选择分层，实际配置与质量分别验证。
 - **安全交接**：保留原任务、未提交现场、有效窗口与锁，受保护角色不自动轮换。
-- **本人维护工作本**：发送方只发布到自己的发件簿，目标 Agent 完成当前项后自己扫描、写待办、认领和反馈；不允许其他 Agent 代写它的记录。
+- **独立邮箱与本人待办**：完整邮件和收件人索引独立于双方工作本，发送者只发短通知；接收者打开完整邮件后本人入待办/认领，不扫描其他Agent记录。
 - **主动接单与缺陷闭环**：获授权后配置原生周期启动，跟踪真实收件/认领/行动；Agent发现问题查重建修复单，既定基线bug自主修复到专属审核，生产缺陷实际复核后关闭。
 - **产品与调度并行**：按用户选择分离角色；产品经理处理需求和验收，独立调度持续处理ready项，缺产品条件的项不堵住其余队列。原台账需单writer安全交接。
 
@@ -42,21 +42,22 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    S[发送方本人] --> O[自己的发件簿与派单记录]
-    R[接收方本人] -->|完成当前项后扫描| O
+    S[发送方本人] --> O[独立邮件库与收件人索引]
+    S -->|一次简短通知与邮件ID| R[接收方本人]
+    R -->|安全点按ID打开完整邮件| O
     R --> Q[自己的工作本与待办]
     Q --> C[本人标记已认领]
     C --> W[进行中]
     W --> E[完成 / 阻塞 / 证据]
-    E -->|再扫描下一项| R
+    E -->|检查本人邮箱下一项| R
     S -.只读本人回执.-> E
 ```
 
-“待对方扫描”与“已接收、已认领”分别记录。日记/事件由本人维护；主管只登记路径和路由。全局执行台账由组合模式的主 PM 或分离后已接管该任务的调度唯一维护。产品、用户、需求、模块新增也可记录为本人的分类事件并引用原授权。
+“已存储、已通知、已打开、本人入待办、已认领、实际动作”分别记录。日记/事件由本人维护；主管只登记路径和路由。全局执行台账由组合模式的主 PM 或分离后已接管该任务的调度唯一维护。产品、用户、需求、模块新增也可记录为本人的分类事件并引用原授权。
 
 记录按 **日期 → 类别 → 处理项 → 分页** 分类：每页最多50条事件，根文件只列最近20天索引，不向一个文件无限追加。当前协作架构优先于旧全局默认；代码测试后只集成预备线，main 由指定审核者晋级。
 
-[工作本协议与 CLI](skills/agent-collaboration-supervisor/references/durable-workbooks.md)包含本地持久投递工具、恢复约定和试行步骤。工具不联网、不发送即时聊天、不执行消息中的业务动作。文件不会自动唤醒已结束的会话；启用主动调度后须核对真实扫描入口，按授权配置周期启动/必要的临时接收heartbeat；接入、触发、本人认领及持续效果分别验收。
+[独立邮箱协议与CLI](skills/agent-collaboration-supervisor/references/mailbox-transport.md)包含完整邮件存储、短通知、按ID打开和本人入账；[个人工作本](skills/agent-collaboration-supervisor/references/durable-workbooks.md)保留分类与恢复约定。新收件只查本人邮件索引，无须扫描所有Agent记录或新增逐角色收件timer。工具不自行发聊天/启动Agent；原生通知由发送方按现有授权执行。规则、隔离测试和实际角色接入分别验收。
 
 ## 使用
 
@@ -90,7 +91,8 @@ Skill 入口：[SKILL.md](skills/agent-collaboration-supervisor/SKILL.md)。
 | [监督与并行](skills/agent-collaboration-supervisor/references/supervision-and-parallelism.md) | 覆盖/指标、就绪委派包、助手容量与串行门禁 |
 | [模型与成本](skills/agent-collaboration-supervisor/references/model-and-cost-policy.md) | 差量采样、本人义务启停、模型实际采用与真实用量 |
 | [配置样例](skills/agent-collaboration-supervisor/assets/collaboration-config.example.json) | 中性草案，不含真实身份；自动化/并行/继任默认未启用 |
-| [工作本协议](skills/agent-collaboration-supervisor/references/durable-workbooks.md) | 本人维护、扫描认领、持久反馈和空闲空窗 |
+| [工作本协议](skills/agent-collaboration-supervisor/references/durable-workbooks.md) | 本人维护、分类、认领与恢复 |
+| [独立邮箱](skills/agent-collaboration-supervisor/references/mailbox-transport.md) | 邮件库、收件索引、短通知、打开后本人入账 |
 | [本地工作本工具](skills/agent-collaboration-supervisor/scripts/workbook.py) | Python 标准库实现，只操作获准本地记录 |
 | [产品与任务调度并行](skills/agent-collaboration-supervisor/references/product-dispatch-parallelism.md) | 角色分离、就绪卡、独立队列与存量单writer交接 |
 
