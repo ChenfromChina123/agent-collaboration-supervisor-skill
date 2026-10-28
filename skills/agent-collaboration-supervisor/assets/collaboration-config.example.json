@@ -207,5 +207,14 @@
     "light_work_uses_timer": false,
     "pause_if_no_upstream_or_inflight_obligation": true,
     "new_ready_or_result_requires_one_safe_start": true
+  },
+  "task_naming": {
+    "status": "example_requires_actual_user_choice",
+    "separator": "/",
+    "preserve_current_complete_title": true,
+    "exempt_actor_ids": [],
+    "readback_required": true,
+    "counter_source": "unique_accepted_and_inflight_reserved_task_ids",
+    "unknown_history_is_zero": false
   }
 }

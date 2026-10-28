@@ -110,6 +110,45 @@ def projection_outcome(method):
     return operation
 
 
+def validate_scoped_routes(config):
+    seen = set()
+    for grant in config.get("task_scoped_routes", []):
+        gid = identifier(grant["grant_id"])
+        if gid in seen:
+            raise WorkbookError("Duplicate task-scoped route grant ID")
+        seen.add(gid)
+        pair = [grant["sender"], grant["recipient"]]
+        if any(endpoint not in config["agents"] for endpoint in pair):
+            raise WorkbookError("Scoped route endpoint is not registered")
+        if pair in config["allowed_routes"]:
+            raise WorkbookError("A task-scoped route cannot also have an unrestricted pair grant")
+        if grant.get("status") not in ("active", "revoked"):
+            raise WorkbookError("Scoped route must explicitly be active or revoked")
+        if not isinstance(grant.get("authorization_ref"), str) or not grant["authorization_ref"].strip():
+            raise WorkbookError("Scoped route requires an explicit authorization reference")
+        for field in ("task_ids", "message_types", "work_item_ids"):
+            values = grant.get(field)
+            if (not isinstance(values, list) or not values or
+                    any(not isinstance(v, str) or not v.strip() or "*" in v for v in values) or
+                    len(values) != len(set(values))):
+                raise WorkbookError("Scoped route needs exact nonempty unique " + field)
+            if field == "work_item_ids":
+                for value in values:
+                    identifier(value)
+
+
+def route_authorized(registry, message):
+    pair = [message["sender"], message["recipient"]]
+    if pair in registry["allowed_routes"]:
+        return True
+    return any(grant.get("status") == "active" and
+               [grant["sender"], grant["recipient"]] == pair and
+               message["task_id"] in grant["task_ids"] and
+               message["type"] in grant["message_types"] and
+               message["work_item_id"] in grant["work_item_ids"]
+               for grant in registry.get("task_scoped_routes", []))
+
+
 def configure(root, config, actor=None):
     manager = None
     root = Path(root).resolve()
@@ -121,6 +160,7 @@ def configure(root, config, actor=None):
     for sender, recipient in config["allowed_routes"]:
         if sender not in config["agents"] or recipient not in config["agents"]:
             raise WorkbookError("Route endpoint is not registered")
+    validate_scoped_routes(config)
     root.mkdir(parents=True, exist_ok=True)
     target = root / "registry.json"
     if target.exists() and read(target) != config:
@@ -321,7 +361,7 @@ class Workbook:
                 self._refresh()
         return {"actor": self.actor, "directory": str(self.directory), "initialized": True}
 
-    def _message(self, message):
+    def _message(self, message, require_current_route=True):
         for key in ("message_id", "sender", "recipient", "work_item_id"):
             identifier(message[key])
         if not isinstance(message["requires_action"], bool):
@@ -332,8 +372,11 @@ class Workbook:
         stamp = datetime.fromisoformat(message["created_at"])
         if stamp.tzinfo is None:
             raise WorkbookError("created_at must include timezone")
-        if [message["sender"], message["recipient"]] not in self.registry["allowed_routes"]:
-            raise WorkbookError("Route is not authorized in registry")
+        if require_current_route:
+            # A reused client must observe revocation at the next message operation.
+            self.registry = read(self.root / "registry.json")
+            if self.actor not in self.registry["agents"] or not route_authorized(self.registry, message):
+                raise WorkbookError("Route is not authorized in registry")
         if len(encoded(message)) > 65536:
             raise WorkbookError("Use evidence pointers; message exceeds 64 KiB")
         return message
@@ -343,6 +386,8 @@ class Workbook:
         self._message(message)
         if message["sender"] != self.actor:
             raise WorkbookError("Only sender may publish its outbox")
+        if [message["sender"], message["recipient"]] not in self.registry["allowed_routes"]:
+            raise WorkbookError("Task-scoped routes require AgentMail.send; do not publish a new legacy outbox message")
         with self._lock():
             self._safe(self.directory / "outbox")
             existing = list((self.directory / "outbox").rglob(message["message_id"] + ".json"))
@@ -381,7 +426,8 @@ class Workbook:
         rows = []
         for path in sorted((self.directory / "inbox").rglob("*.json")):
             self._safe(path)
-            message = self._message(read(path))
+            # Preserve owner history after revocation; claim rechecks the selected message live.
+            message = self._message(read(path), require_current_route=False)
             if message["recipient"] != self.actor or path.relative_to(self.directory / "inbox").parts[0] != message["sender"] or path.stem != message["message_id"]:
                 raise WorkbookError("Inbox envelope/path mismatch")
             rows.append(message)
@@ -428,6 +474,7 @@ class Workbook:
                 raise WorkbookError("Message is not in this inbox")
             if message_id not in state["queued"]:
                 raise WorkbookError("Owner must scan and record this message before claiming")
+            self._message(message)
             if not message["requires_action"] or message["work_item_id"] in state["items"]:
                 disposition = "recorded_no_action" if not message["requires_action"] else "duplicate_work_not_reexecuted"
                 self._event("observed", {"message_id": message_id, "disposition": disposition, "work_item_id": message["work_item_id"]})

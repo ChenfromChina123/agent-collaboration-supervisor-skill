@@ -128,3 +128,22 @@ null 表示未核实，不是默认空闲。phase 可映射 intake/development/v
 ## 分离模式的主动责任
 
 启用独立调度后，PM及PM协作者不再为新任务承担执行派单职责，未交接旧TASK保留原writer；以[产品分离](product-dispatch-parallelism.md)和[主动接单与缺陷闭环](proactive-intake-and-defect-loop.md)为准。审计/审核/开发等发现独立缺陷，DEFECT_REPORT直接交调度查重建单；同候选审查意见仍直接回原开发。恢复既定基线的bug可自主走开发→专属审核，不把PM忙碌作为前置条件；生产权限另行核准。
+
+## 单项受限联系
+
+已有owner明确授权一条跨执行者联系，且普通全局pair路由不存在时，原registry manager可登记task_scoped_routes，必须固定sender/recipient、task_ids、message_types、work_item_ids、authorization_ref及active/revoked状态；没有空集合或通配符。它不增加业务/产品/服务器权限，也不把一个问题升级为永久联系许可。
+
+```json
+{
+  "grant_id": "ROUTE-EXAMPLE-001",
+  "sender": "UI-OWNER",
+  "recipient": "MANUAL-OWNER",
+  "task_ids": ["TASK-EXAMPLE-001"],
+  "message_types": ["COORDINATION_REQUEST"],
+  "work_item_ids": ["WORK-MANUAL-DEPENDENCY-001"],
+  "status": "active",
+  "authorization_ref": "fixed owner-approved dependency package"
+}
+```
+
+使用同一个已审冻结mail_transport.py/workbook.py配对；新受限路由只通过AgentMail.send投递，不用旧outbox send/跨发送者scan。工具逐封核对当前登记，错TASK/类型/处理项、反向发送、撤销后新操作拒绝。限定pair不能同时留在无限制allowed_routes中冒充窄授权。完成、取消、撤回或固定问题范围结束，由原manager据实际证据撤销；不是自动业务停机或生产授权。已有业务owner仍检查TASK/许可当前有效性，未知不猜或转抄正文绕路。
