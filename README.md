@@ -32,6 +32,7 @@ flowchart LR
 - **单一 writer**：一个全局台账、一个目录/分支一个 writer；未知归属不抢占。
 - **有界并行**：先有已授权父任务和独立范围，再创建助手；建议总额外助手最多 2 名，需项目实际授权。
 - **增量监督**：按游标、覆盖与样本取证，缺测记 unknown，无变化安静；不把等待批准误判为故障。
+- **协作成本与模型分层**：只查变化，不为凑满上限读取冷会话；定时器看本人实际义务，模型按用户选择分层，实际配置与质量分别验证。
 - **安全交接**：保留原任务、未提交现场、有效窗口与锁，受保护角色不自动轮换。
 - **本人维护工作本**：发送方只发布到自己的发件簿，目标 Agent 完成当前项后自己扫描、写待办、认领和反馈；不允许其他 Agent 代写它的记录。
 - **主动接单与缺陷闭环**：获授权后配置原生周期启动，跟踪真实收件/认领/行动；Agent发现问题查重建修复单，既定基线bug自主修复到专属审核，生产缺陷实际复核后关闭。
@@ -87,6 +88,7 @@ Skill 入口：[SKILL.md](skills/agent-collaboration-supervisor/SKILL.md)。
 | [角色与消息协议](skills/agent-collaboration-supervisor/references/roles-and-routing.md) | 职责矩阵、路由、任务视图、消息与交付清单 |
 | [搭建与交接](skills/agent-collaboration-supervisor/references/bootstrap-and-handoff.md) | 创建/复用角色、置顶、独占根和代际交接 |
 | [监督与并行](skills/agent-collaboration-supervisor/references/supervision-and-parallelism.md) | 覆盖/指标、就绪委派包、助手容量与串行门禁 |
+| [模型与成本](skills/agent-collaboration-supervisor/references/model-and-cost-policy.md) | 差量采样、本人义务启停、模型实际采用与真实用量 |
 | [配置样例](skills/agent-collaboration-supervisor/assets/collaboration-config.example.json) | 中性草案，不含真实身份；自动化/并行/继任默认未启用 |
 | [工作本协议](skills/agent-collaboration-supervisor/references/durable-workbooks.md) | 本人维护、扫描认领、持久反馈和空闲空窗 |
 | [本地工作本工具](skills/agent-collaboration-supervisor/scripts/workbook.py) | Python 标准库实现，只操作获准本地记录 |
