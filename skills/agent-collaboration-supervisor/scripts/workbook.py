@@ -361,7 +361,7 @@ class Workbook:
                 self._refresh()
         return {"actor": self.actor, "directory": str(self.directory), "initialized": True}
 
-    def _message(self, message):
+    def _message(self, message, require_current_route=True):
         for key in ("message_id", "sender", "recipient", "work_item_id"):
             identifier(message[key])
         if not isinstance(message["requires_action"], bool):
@@ -372,10 +372,11 @@ class Workbook:
         stamp = datetime.fromisoformat(message["created_at"])
         if stamp.tzinfo is None:
             raise WorkbookError("created_at must include timezone")
-        # A reused client must observe revocation at the next message operation.
-        self.registry = read(self.root / "registry.json")
-        if self.actor not in self.registry["agents"] or not route_authorized(self.registry, message):
-            raise WorkbookError("Route is not authorized in registry")
+        if require_current_route:
+            # A reused client must observe revocation at the next message operation.
+            self.registry = read(self.root / "registry.json")
+            if self.actor not in self.registry["agents"] or not route_authorized(self.registry, message):
+                raise WorkbookError("Route is not authorized in registry")
         if len(encoded(message)) > 65536:
             raise WorkbookError("Use evidence pointers; message exceeds 64 KiB")
         return message
@@ -425,7 +426,8 @@ class Workbook:
         rows = []
         for path in sorted((self.directory / "inbox").rglob("*.json")):
             self._safe(path)
-            message = self._message(read(path))
+            # Preserve owner history after revocation; claim rechecks the selected message live.
+            message = self._message(read(path), require_current_route=False)
             if message["recipient"] != self.actor or path.relative_to(self.directory / "inbox").parts[0] != message["sender"] or path.stem != message["message_id"]:
                 raise WorkbookError("Inbox envelope/path mismatch")
             rows.append(message)
@@ -472,6 +474,7 @@ class Workbook:
                 raise WorkbookError("Message is not in this inbox")
             if message_id not in state["queued"]:
                 raise WorkbookError("Owner must scan and record this message before claiming")
+            self._message(message)
             if not message["requires_action"] or message["work_item_id"] in state["items"]:
                 disposition = "recorded_no_action" if not message["requires_action"] else "duplicate_work_not_reexecuted"
                 self._event("observed", {"message_id": message_id, "disposition": disposition, "work_item_id": message["work_item_id"]})

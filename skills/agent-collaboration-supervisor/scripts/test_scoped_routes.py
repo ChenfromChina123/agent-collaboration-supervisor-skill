@@ -52,10 +52,13 @@ class ScopedRouteTests(unittest.TestCase):
     def test_same_client_observes_revocation_and_preserves_existing_mail(self):
         sender=AgentMail(self.store,self.root,"ui");recipient=AgentMail(self.store,self.root,"admin")
         sender.send(self.message());obj=self.store/"messages/ui/MSG-R06.json";before=obj.read_bytes()
+        recipient.open("ui","MSG-R06");recipient.accept("ui","MSG-R06")
         updated=deepcopy(self.config);updated["task_scoped_routes"][0]["status"]="revoked"
         configure(self.root,updated,"manager")
         with self.assertRaises(WorkbookError):sender.send({**self.message(),"message_id":"MSG-R06-2"})
         with self.assertRaises(WorkbookError):recipient.open("ui","MSG-R06")
+        with self.assertRaises(WorkbookError):Workbook(self.root,"admin").claim("MSG-R06")
+        self.assertEqual(Workbook(self.root,"admin").state()["queued"]["MSG-R06"]["status"],"queued")
         self.assertEqual(before,obj.read_bytes())
 
     def test_ambiguous_empty_or_wildcard_grants_are_not_written(self):
@@ -75,6 +78,18 @@ class ScopedRouteTests(unittest.TestCase):
         with self.assertRaisesRegex(WorkbookError,"AgentMail.send"):
             Workbook(self.root,"ui").send(self.message())
         self.assertFalse(list((self.root/"agents/ui/outbox").rglob("*.json")))
+
+    def test_revoked_completed_mail_does_not_block_another_valid_claim(self):
+        AgentMail(self.store,self.root,"ui").send(self.message())
+        recipient=AgentMail(self.store,self.root,"admin")
+        recipient.open("ui","MSG-R06");recipient.accept("ui","MSG-R06")
+        book=Workbook(self.root,"admin");book.claim("MSG-R06");book.transition("WORK-ADMIN-R06","completed","fixture done")
+        c=deepcopy(self.config);c["task_scoped_routes"][0]["status"]="revoked";configure(self.root,c,"manager")
+        other={**self.message(),"message_id":"MSG-GLOBAL","sender":"manager","task_id":"TASK-GLOBAL","work_item_id":"WORK-GLOBAL","type":"ASSIGN"}
+        AgentMail(self.store,self.root,"manager").send(other)
+        recipient.open("manager","MSG-GLOBAL");recipient.accept("manager","MSG-GLOBAL")
+        self.assertEqual(book.claim("MSG-GLOBAL")["status"],"claimed")
+        self.assertEqual(book.state()["items"]["WORK-ADMIN-R06"]["status"],"completed")
 
 
 if __name__=="__main__":unittest.main()
