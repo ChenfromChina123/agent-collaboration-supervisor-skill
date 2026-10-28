@@ -23,6 +23,8 @@ license: MIT
 
 - **主动接单与Agent缺陷闭环**：读取[主动接单与缺陷流程](references/proactive-intake-and-defect-loop.md)。就绪卡直接成为调度待办，轻任务一次安全启动，重/多轮任务按需原生跟进并跟踪本人接单/行动；既定基线缺陷自主核实修复，真正新决定及生产变更分开门禁。
 
+- **派单命名与容量**：用户要求标题追加或报告漏项时，读取[标题与容量](references/task-title-and-capacity.md)。独立TASK集合和在途保留位核容量，原生命名必须读回；失败只补元数据，不重派业务。
+
 - **降低协作成本与模型分层**：用户要求排查Token消耗、冗余唤醒或廉价模型时，读取[模型与成本](references/model-and-cost-policy.md)。按真实动作筛选0至上限个快照，定时器看本人义务；模型配置实际采用与角色权限分别验收。
 
 只加载本次相关引用。参考[配置样例](assets/collaboration-config.example.json)生成项目自己的登记；样例中的 null、默认参数和 draft 状态不能冒充实际配置或核准。

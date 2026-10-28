@@ -70,3 +70,5 @@ flowchart LR
 ## 主动接单补充
 
 角色分离必须同时落实[主动接单与缺陷闭环](proactive-intake-and-defect-loop.md)，不能只更名。READY_FOR_DISPATCH本身即调度待办；代码owner/容量尚未确定由调度核实，不要求PM先完成开发排程。周期启动须有用户授权并核验真实运行；派发须跟踪开发本人接单及实际行动。
+
+派单元数据还须按[标题与容量](task-title-and-capacity.md)核对唯一TASK/在途保留位、原生标题追加和实际读回。命名失败记录metadata_incomplete，保留原派单和真实开发进度，不重发业务。
