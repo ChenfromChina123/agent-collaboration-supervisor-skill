@@ -5,9 +5,36 @@
   "calendar_timezone_label": "UTC",
   "calendar_utc_offset_minutes": 0,
   "agents": {
-    "supervisor": {"role": "collaboration_supervisor", "title": "Supervisor"},
-    "pm": {"role": "product_manager", "title": "Primary PM"},
-    "worker": {"role": "developer", "title": "Task worker"}
+    "supervisor": {
+      "role": "collaboration_supervisor",
+      "title": "Supervisor"
+    },
+    "pm": {
+      "role": "product_manager",
+      "title": "Primary PM"
+    },
+    "worker": {
+      "role": "developer",
+      "title": "Task worker"
+    }
   },
-  "allowed_routes": [["supervisor", "pm"], ["pm", "supervisor"], ["pm", "worker"], ["worker", "pm"]]
+  "allowed_routes": [
+    [
+      "supervisor",
+      "pm"
+    ],
+    [
+      "pm",
+      "supervisor"
+    ],
+    [
+      "pm",
+      "worker"
+    ],
+    [
+      "worker",
+      "pm"
+    ]
+  ],
+  "task_scoped_routes": []
 }

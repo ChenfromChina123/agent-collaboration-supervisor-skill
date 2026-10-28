@@ -85,3 +85,5 @@ python workbook.py --root /approved/workbooks --actor RECIPIENT transition --wor
 旧outbox/inbox/事件保持原ID和状态，只对确切未消费旧消息做一次有界清点/原协议收口；不得把已派发旧消息作为新邮件重投。`workbook.py send/scan`保留为旧消息兼容工具，不是新协议的收件发现入口。迁移窗口内记录哪些发送者/接收者已接入，防止新邮件与旧客户端互相漏收。新邮件入口只用本邮箱headers和指定ID的open/accept，停止把跨发送者scan配置为各角色常态任务。
 
 验收至少覆盖：提交后双方个人待办字节不变；通知/标题没有正文；打开后仍未建待办；只有接收方accept才queued、claim后才认领；busy时后件留邮箱不改当前项；重复/崩溃不派第二次；接收方仅访问本邮箱索引。至少一条实际角色间通知→打开→本人入账链成功后，才报告试行生效。隔离fixture通过不能报全量采用或长期省Token。
+
+新增单任务跨owner联系须先按[受限联系](roles-and-routing.md#单项受限联系)由原manager登记精确授权；不能为解除一次投递阻塞添加无限制pair。旧客户端不支持新grant时先在安全点采用已审冻结配对，不重投原业务或共写收件方待办。
